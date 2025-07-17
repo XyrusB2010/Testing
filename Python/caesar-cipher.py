@@ -72,12 +72,13 @@ def solve():
             else:
                 decrypted.append(encrypted[i])
         attempts.append(''.join(decrypted))
-    
-    for i in attempts:
-        if attempts[i] in wordList:
-            print(f'Match found: {attempts[i]}')
-        else:
-            print(f'No match found, but you can look at these possibilities: {attempts}')
+
+    for attempt in attempts:
+        if attempt in wordList:
+            print(f'Match found: {attempt}')
+            print(f'Other possibilities: {attempts}')
+            exit()
+    print(f'No match found, but here are all possibilities: {attempts}')
 
 import sys
 option = ''
@@ -88,5 +89,5 @@ if option == 1: encrypt()
 elif option == 2: decrypt()
 elif option == 3: solve()
 else:
-    print(f'Enter "1" or "2"! Not {option}!', file=sys.stderr)
+    print(f'Enter "1", "2", or "3"! Not {option}!', file=sys.stderr)
     exit()
