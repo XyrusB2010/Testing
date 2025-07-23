@@ -29,10 +29,15 @@ h7 = 0x5be0cd19
 
 message = input('Enter message to encrypt with SHA256: ')
 binMessage = asciiToBin(message)
+messageList = []
 
 if len(binMessage) > 512:
-    print(f'Your message is {len(binMessage)} bits long, which is more than 512 bits. Appending another 512-bit block.')
-    exit()
+    print(f'Your message is {len(binMessage)} bits long, which is more than 512 bits. Slicing into 512-bit blocks...')
+    for i in range(0, len(binMessage), 512):
+        messageList.append(binMessage[i:i+512])
+    messageList[-1] += '1'
+    for i in range(512 - len(binMessage[-1])):
+        messageList[-1] += '0'
 elif len(binMessage) > 64:
     print(f'Your message is {len(binMessage)} bits long, which is more than 64 bits. Padding to 512 bits...')
     binMessage += '1'
@@ -43,3 +48,4 @@ else:
     binMessage += '1'
     for i in range(64 - len(binMessage)):
         binMessage += '0'
+print(len(messageList[-1]))
