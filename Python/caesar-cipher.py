@@ -54,31 +54,36 @@ def solve():
     alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
     numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     encrypted = input('Enter message to solve: ').upper()
+    encryptedList = encrypted.split()
     attempts = []
 
-    for shift in range(26):
-        decrypted = []
-        for i in range(len(encrypted)):
-            if encrypted[i].isalpha() and not encrypted[i] == ' ':
-                char = alphabet.index(encrypted[i]) - shift
-                while char < 0:
-                    char += 26
-                decrypted.append(alphabet[char])
-            elif encrypted[i].isnumeric():
-                char = numbers.index(encrypted[i]) - shift
-                while char < 0:
-                    char += 10
-                decrypted.append(numbers[char])
-            else:
-                decrypted.append(encrypted[i])
-        attempts.append(''.join(decrypted))
-
-    for attempt in attempts:
-        if attempt in wordList:
-            print(f'Match found: {attempt}')
-            print(f'Other possibilities: {attempts}')
-            exit()
-    print(f'No match found, but here are all possibilities: {attempts}')
+    for word in encryptedList:
+        attempts = []
+        foundMatch = None
+        for shift in range(26):
+            decrypted = []
+            for i in range(len(word)):
+                if word[i].isalpha() and not word[i] == ' ':
+                    char = alphabet.index(word[i]) - shift
+                    while char < 0:
+                        char += 26
+                    decrypted.append(alphabet[char])
+                # elif word[i].isnumeric():
+                #     char = numbers.index(word[i]) - shift
+                #     while char < 0:
+                #         char += 10
+                #     decrypted.append(numbers[char])
+                else:
+                    decrypted.append(word[i])
+            attempts.append(''.join(decrypted))
+        for attempt in attempts:
+            if attempt in wordList:
+                print(f'Match found: {attempt}')
+                print(f'Number of shifts used: {attempts.index(attempt)}')
+                print(f'Other possibilities: {attempts} \n')
+                foundMatch = True
+        if foundMatch != True:
+                print(f'No match found, but here are all possibilities: {attempts} \n')
 
 import sys
 option = ''
