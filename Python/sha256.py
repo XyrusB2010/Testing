@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+import requests
 
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
@@ -48,25 +49,19 @@ K = [
 def sha256_hash(message_bytes):
     message = ''.join(format(byte, '08b') for byte in message_bytes)
     messageLen = len(message)
-
     message += '1'
     while (len(message) + 64) % 512 != 0:
         message += '0'
     message += format(messageLen, '064b')
-
     chunks = [message[i:i+512] for i in range(0, len(message), 512)]
     hash_pieces = [h0, h1, h2, h3, h4, h5, h6, h7]
-
     for chunk in chunks:
         W = [int(chunk[i:i+32], 2) for i in range(0, 512, 32)]
-
         for i in range(16, 64):
             s0 = sigma0(W[i - 15])
             s1 = sigma1(W[i - 2])
             W.append(add32(W[i - 16], s0, W[i - 7], s1))
-
         a, b, c, d, e, f, g, h = hash_pieces
-
         for i in range(64):
             S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
             ch = (e & f) ^ ((~e) & g)
@@ -74,7 +69,6 @@ def sha256_hash(message_bytes):
             S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
             maj = (a & b) ^ (a & c) ^ (b & c)
             temp2 = add32(S0, maj)
-
             h = g
             g = f
             f = e
@@ -83,7 +77,6 @@ def sha256_hash(message_bytes):
             c = b
             b = a
             a = add32(temp1, temp2)
-
         hash_pieces = [
             add32(hash_pieces[0], a),
             add32(hash_pieces[1], b),
@@ -94,16 +87,30 @@ def sha256_hash(message_bytes):
             add32(hash_pieces[6], g),
             add32(hash_pieces[7], h)
         ]
-
     return ''.join(format(x, '08x') for x in hash_pieces)
 
 def main():
-    parser = argparse.ArgumentParser(description="SHA256 hasher")
+    parser = argparse.ArgumentParser(
+    description=r'''
+ $$$$$$\  $$\   $$\  $$$$$$\   $$$$$$\  $$$$$$$\   $$$$$$\  
+$$  __$$\ $$ |  $$ |$$  __$$\ $$  __$$\ $$  ____| $$  __$$\ 
+$$ /  \__|$$ |  $$ |$$ /  $$ |\__/  $$ |$$ |      $$ /  \__|
+\$$$$$$\  $$$$$$$$ |$$$$$$$$ | $$$$$$  |$$$$$$$\  $$$$$$$\  
+ \____$$\ $$  __$$ |$$  __$$ |$$  ____/ \_____$$\ $$  __$$\ 
+$$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
+\$$$$$$  |$$ |  $$ |$$ |  $$ |$$$$$$$$\ \$$$$$$  | $$$$$$  |
+ \______/ \__|  \__|\__|  \__|\________| \______/  \______/ ''',
+    formatter_class=argparse.RawTextHelpFormatter
+)
     parser.add_argument('-f', '--file', type=str, help='File to hash')
+    parser.add_argument('-c', '--check', type=str, help='Hash string to check against')
+    parser.add_argument('-u', '--url', type=str, help='Hash file from URL')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
-
     args = parser.parse_args()
-
+    if not args.file and not args.url and not args.text:
+        print("Error: You must provide either text to hash, a file with -f, or a URL with -u.")
+        parser.print_help()
+        sys.exit(1)
     if args.file:
         try:
             with open(args.file, 'rb') as f:
@@ -114,15 +121,28 @@ def main():
         except Exception as e:
             print(f"Error reading file '{args.file}': {e}")
             sys.exit(1)
-    elif args.text:
-        message_bytes = ' '.join(args.text).encode('utf-8')
+    elif args.url:
+        try:
+            response = requests.get(args.url)
+            response.raise_for_status()
+            message_bytes = response.content
+        except Exception as e:
+            print(f"Error fetching URL '{args.url}': {e}")
+            sys.exit(1)
     else:
-        print("Error: You must provide either text to hash or a file with -f.")
-        parser.print_help()
-        sys.exit(1)
-
+        message_bytes = ' '.join(args.text).encode('utf-8')
     output = sha256_hash(message_bytes)
-    print(output)
+    if args.check:
+        if output.lower() == args.check.lower():
+            print("Success: Hashes match.")
+            sys.exit(0)
+        else:
+            print("Failure: Hashes do not match.")
+            print(f"Expected: {args.check}")
+            print(f"Computed: {output}")
+            sys.exit(1)
+    else:
+        print(output)
 
 if __name__ == "__main__":
     main()
