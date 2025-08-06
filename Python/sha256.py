@@ -49,7 +49,6 @@ def sha256_hash(message_bytes):
     message = ''.join(format(byte, '08b') for byte in message_bytes)
     messageLen = len(message)
 
-    # Padding
     message += '1'
     while (len(message) + 64) % 512 != 0:
         message += '0'
@@ -101,7 +100,7 @@ def sha256_hash(message_bytes):
 def main():
     parser = argparse.ArgumentParser(description="SHA256 hasher")
     parser.add_argument('-f', '--file', type=str, help='File to hash')
-    parser.add_argument('text', nargs='?', help='Text to hash if no file is provided')
+    parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
 
     args = parser.parse_args()
 
@@ -116,7 +115,7 @@ def main():
             print(f"Error reading file '{args.file}': {e}")
             sys.exit(1)
     elif args.text:
-        message_bytes = args.text.encode('utf-8')
+        message_bytes = ' '.join(args.text).encode('utf-8')
     else:
         print("Error: You must provide either text to hash or a file with -f.")
         parser.print_help()
