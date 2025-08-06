@@ -1,28 +1,19 @@
-def decToBin(decimal):
-    bin_list = []
-    place = 1
-    while place * 2 <= decimal:
-        place = place * 2
-    while place >= 1:
-        if decimal >= place:
-            bin_list.append('1')
-            decimal = decimal - place
-        else:
-            bin_list.append('0')
-        place = place / 2
-    bin_list = ''.join(bin_list)
-    while len(bin_list) < 64:
-        bin_list = '0' + bin_list
-    return bin_list
+#!/usr/bin/env python3
+import argparse
+import sys
 
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
+
 def shiftr(input, bits):
     return input >> bits
+
 def sigma0(n):
     return rotr(n, 7) ^ rotr(n, 18) ^ shiftr(n, 3)
+
 def sigma1(n):
     return rotr(n, 17) ^ rotr(n, 19) ^ shiftr(n, 10)
+
 def add32(*args):
     return sum(args) & 0xFFFFFFFF
 
@@ -54,61 +45,85 @@ K = [
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]
 
-a, b, c, d, e, f, g, h = h0, h1, h2, h3, h4, h5, h6, h7
+def sha256_hash(message_bytes):
+    message = ''.join(format(byte, '08b') for byte in message_bytes)
+    messageLen = len(message)
 
-message = input('Enter message to encrypt with SHA256: ')
-message = ''.join(format(ord(char), '08b') for char in message)
-messageLen = len(message)
+    # Padding
+    message += '1'
+    while (len(message) + 64) % 512 != 0:
+        message += '0'
+    message += format(messageLen, '064b')
 
-message += '1'
-while len(message) < 448:
-    message += '0'
-message += decToBin(messageLen)
+    chunks = [message[i:i+512] for i in range(0, len(message), 512)]
+    hash_pieces = [h0, h1, h2, h3, h4, h5, h6, h7]
 
-slicedMessage = [(message[i:i+32]) for i in range(0, len(message), 32)]
-W = [int(word, 2) for word in slicedMessage]
+    for chunk in chunks:
+        W = [int(chunk[i:i+32], 2) for i in range(0, 512, 32)]
 
-for x in range(16, 64):
-    word = add32(
-        sigma1(W[x - 2]),
-        W[x - 7],
-        sigma0(W[x - 15]),
-        W[x - 16]
-    )
-    W.append(word)
+        for i in range(16, 64):
+            s0 = sigma0(W[i - 15])
+            s1 = sigma1(W[i - 2])
+            W.append(add32(W[i - 16], s0, W[i - 7], s1))
 
-for i in range(64):
-    S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
-    ch = (e & f) ^ ((~e) & g)
-    temp1 = add32(h, S1, ch, K[i], W[i])
-    S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
-    maj = (a & b) ^ (a & c) ^ (b & c)
-    temp2 = add32(S0, maj)
+        a, b, c, d, e, f, g, h = hash_pieces
 
-    h = g
-    g = f
-    f = e
-    e = add32(d, temp1)
-    d = c
-    c = b
-    b = a
-    a = add32(temp1, temp2)
+        for i in range(64):
+            S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)
+            ch = (e & f) ^ ((~e) & g)
+            temp1 = add32(h, S1, ch, K[i], W[i])
+            S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)
+            maj = (a & b) ^ (a & c) ^ (b & c)
+            temp2 = add32(S0, maj)
 
-h0 = add32(h0, a)
-h1 = add32(h1, b)
-h2 = add32(h2, c)
-h3 = add32(h3, d)
-h4 = add32(h4, e)
-h5 = add32(h5, f)
-h6 = add32(h6, g)
-h7 = add32(h7, h)
+            h = g
+            g = f
+            f = e
+            e = add32(d, temp1)
+            d = c
+            c = b
+            b = a
+            a = add32(temp1, temp2)
 
-output = ''.join(format(x, '08x') for x in [h0, h1, h2, h3, h4, h5, h6, h7])
-print('Output: ', output)
+        hash_pieces = [
+            add32(hash_pieces[0], a),
+            add32(hash_pieces[1], b),
+            add32(hash_pieces[2], c),
+            add32(hash_pieces[3], d),
+            add32(hash_pieces[4], e),
+            add32(hash_pieces[5], f),
+            add32(hash_pieces[6], g),
+            add32(hash_pieces[7], h)
+        ]
 
-saveHash = input('Save hash to output file? (y/N): ') == 'y'
-if saveHash:
-    filename = input('Enter filename: ') + '.sha256sum'
-    with open(filename, 'w') as file:
-        file.write(output)
-    print(f'Hash saved to file: {filename}')
+    return ''.join(format(x, '08x') for x in hash_pieces)
+
+def main():
+    parser = argparse.ArgumentParser(description="SHA256 hasher")
+    parser.add_argument('-f', '--file', type=str, help='File to hash')
+    parser.add_argument('text', nargs='?', help='Text to hash if no file is provided')
+
+    args = parser.parse_args()
+
+    if args.file:
+        try:
+            with open(args.file, 'rb') as f:
+                message_bytes = f.read()
+        except FileNotFoundError:
+            print(f"Error: File '{args.file}' not found.")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error reading file '{args.file}': {e}")
+            sys.exit(1)
+    elif args.text:
+        message_bytes = args.text.encode('utf-8')
+    else:
+        print("Error: You must provide either text to hash or a file with -f.")
+        parser.print_help()
+        sys.exit(1)
+
+    output = sha256_hash(message_bytes)
+    print(output)
+
+if __name__ == "__main__":
+    main()
