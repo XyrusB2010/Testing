@@ -105,16 +105,17 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     parser.add_argument('-f', '--file', type=str, help='File to hash')
     parser.add_argument('-c', '--check', type=str, help='Hash string to check against')
     parser.add_argument('-u', '--url', type=str, help='Hash file from URL')
+    parser.add_argument('-s', '--save', action='store_true', help='Save generated hash as .sha256 file')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
-    if not args.file and not args.url and not args.text:
+    if not args.file and not args.url and not args.text and not args.check:
         print("Error: You must provide either text to hash, a file with -f, or a URL with -u.")
         parser.print_help()
         sys.exit(1)
     if args.file:
         try:
-            with open(args.file, 'rb') as f:
-                message_bytes = f.read()
+            with open(args.file, 'rb') as file:
+                message_bytes = file.read()
         except FileNotFoundError:
             print(f"Error: File '{args.file}' not found.")
             sys.exit(1)
@@ -133,14 +134,45 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
         message_bytes = ' '.join(args.text).encode('utf-8')
     output = sha256_hash(message_bytes)
     if args.check:
-        if output.lower() == args.check.lower():
-            print("Success: Hashes match.")
-            sys.exit(0)
+        if '.sha256' in args.check:
+            with open(args.check, 'r') as file:
+                contents = file.read().split('  ')
+            hash = contents[0]
+            filename = contents[-1]
+            with open(filename, 'rb') as file:
+                message_bytes = file.read()
+            output = sha256_hash(message_bytes)
+            if output.lower() == hash.lower():
+                print("Success: Hashes match.")
+                sys.exit()
+            else:
+                print("Failure: Hashes do not match.")
+                print(f"Expected: {args.check}")
+                print(f"Computed: {output}")
+                sys.exit(1)
         else:
-            print("Failure: Hashes do not match.")
-            print(f"Expected: {args.check}")
-            print(f"Computed: {output}")
-            sys.exit(1)
+            if output.lower() == args.check.lower():
+                print("Success: Hashes match.")
+                sys.exit(0)
+            else:
+                print("Failure: Hashes do not match.")
+                print(f"Expected: {args.check}")
+                print(f"Computed: {output}")
+                sys.exit(1)
+    elif args.save:
+        if args.url:
+            filename = args.url.split('/')[-1].split('?')[0]
+            with open(filename + '.sha256sum', 'w') as file:
+                file.write(output + '  ' + filename)
+        elif args.file:
+            filename = args.file
+            with open(filename + '.sha256sum', 'w') as file:
+                file.write(output + '  ' + filename)
+        else:
+            filename = '-'.join(args.text)
+            with open(filename + '.sha256sum', 'w') as file:
+                file.write(output + '  ' + ' '.join(args.text))
+        print(f'SHA256 hash saved to {filename}.sha256sum.')
     else:
         print(output)
 
