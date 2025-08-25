@@ -1,7 +1,35 @@
 """Snake game using turtle libray."""
 import turtle
 import random
+import subprocess
+import os
 
+def sha256Hash(input):
+    output = subprocess.run(
+        ['python3', '/workspaces/Testing/Python/sha256.py', input],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    if output.returncode == 0:
+        return output.stdout.strip()
+    else:
+        raise RuntimeError(f"Error executing sha256.py: {output.stderr}")
+
+filename = os.path.expanduser("~/.turtle-snake")
+if os.path.exists(filename):
+    with open(filename, "r") as file:
+        contents = file.read()
+        hash = contents.split()[1]
+    if hash != sha256Hash(contents.split()[0]):
+        choice = input("Warning: High score file has been tampered with! Do you wish to reset it? (y/N): ").strip().lower()
+        if choice == "y":
+            with open(filename, "w") as file:
+                file.write("0 " + sha256Hash("0"))
+            print("High score has been reset.")
+        else:
+            print("Exiting without changes.")
+            exit()
 
 def snake_up():
     global direction
@@ -23,6 +51,8 @@ def snake_right():
 wn = turtle.Screen()
 DIM = 800
 HALF = DIM / 2
+TEXT_OFFSET_X = 0.325
+TEXT_OFFSET_Y = 0.4
 wn.setup(DIM, DIM)
 HEAD = -1
 TAIL = 0
@@ -48,17 +78,28 @@ for body in range(length):
 apple.shape("circle")
 apple.color("black", "red")
 
+try:
+    with open(filename, "r") as file:
+        print("High score detected, loading...")
+        contents = file.read()
+        best = int(contents.split()[0])
+except FileNotFoundError:
+    with open(filename, "w") as file:
+        print("Failed to detect high score, loading...")
+        file.write("0 " + sha256Hash("0"))
+        best = 0
+
 score = 0
-best = 0
+hashscore = sha256Hash(str(score))
 text = turtle.Turtle()
 text.hideturtle()
 text.penup()
 text.speed("fastest")
 text.color("black")
-text.goto(0, 300)
-text.write(f"Best: {best}", align="center", font=("Arial", 24, "normal"))
-text.goto(300, 300)
-text.write(f"Score: {score}", align="center", font=("Arial", 24, "normal"))
+text.goto(-DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
+text.write(f"Best: {best}", align="left", font=("Arial", 24, "normal"))
+text.goto(DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
+text.write(f"Score: {score}", align="right", font=("Arial", 24, "normal"))
 
 wn.onkey(snake_up, "Up")
 wn.onkey(snake_down, "Down")
@@ -73,7 +114,11 @@ while True:
     if snake[HEAD].distance(apple) < move:
         apple.goto(random.randrange(DIM) - HALF, random.randrange(DIM) - HALF)
         score += 1
+        hashscore = sha256Hash(str(score))
         text.clear()
+        text.goto(-DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
+        text.write(f"Best: {best}", align="center", font=("Arial", 24, "normal"))
+        text.goto(DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
         text.write(f"Score: {score}", align="center", font=("Arial", 24, "normal"))
     else:
         snake[TAIL].reset()
@@ -93,5 +138,12 @@ while True:
     if snake[HEAD].ycor() < -HALF:
         snake[HEAD].sety(HALF)
 #
-wn.textinput('Game over', f'Score: {score}\nClick OK to quit')
+if best < score:
+    best = score
+    with open(filename, "w") as file:
+        print("Saving new high score...")
+        file.write(str(best) + " " + hashscore)
+    wn.textinput('New High Score!', f'New Best: {best}\nClick OK to quit')
+else:
+    wn.textinput('Game over', f'Score: {score}\nClick OK to quit')
 wn.bye()
