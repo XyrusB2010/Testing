@@ -33,20 +33,24 @@ if os.path.exists(filename):
 
 def snake_up():
     global direction
-    direction = north
-    snake[HEAD].setheading(direction)
+    if direction != south:
+        direction = north
+        snake[HEAD].setheading(direction)
 def snake_down():
     global direction
-    direction = south
-    snake[HEAD].setheading(direction)
+    if direction != north:
+        direction = south
+        snake[HEAD].setheading(direction)
 def snake_left():
     global direction
-    direction = west
-    snake[HEAD].setheading(direction)
+    if direction != east:
+        direction = west
+        snake[HEAD].setheading(direction)
 def snake_right():
     global direction
-    direction = east
-    snake[HEAD].setheading(direction)
+    if direction != west:
+        direction = east
+        snake[HEAD].setheading(direction)
 
 wn = turtle.Screen()
 DIM = 800
