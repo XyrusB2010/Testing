@@ -1,20 +1,11 @@
 # Snake game using turtle library.
 import turtle
 import random
-import subprocess
 import os
+from anticheat import sha256_hash as hash
 
 def antiCheat(input):
-    output = subprocess.run(
-        ['python3', '/workspaces/Testing/Python/sha256.py', input],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-    if output.returncode == 0:
-        return output.stdout.strip()
-    else:
-        raise RuntimeError(f"Error executing sha256.py: {output.stderr}")
+    return hash(input.encode('utf-8'))
 
 name = input("Enter your name: ").strip()
 if not name:
@@ -88,6 +79,7 @@ if speed == 11:
     speed = 0
 
 while True:
+    wn.bgpic("background.gif")
     apple = turtle.Turtle()
     apple.shape("square")
     apple.color("green")
@@ -130,7 +122,7 @@ while True:
     text.hideturtle()
     text.penup()
     text.speed("fastest")
-    text.color("black")
+    text.color("white")
     text.goto(-DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
     text.write(f"Best: {best}", align="left", font=("Arial", 24, "normal"))
     text.goto(DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
@@ -162,7 +154,8 @@ while True:
             text.goto(DIM * TEXT_OFFSET_X, DIM * TEXT_OFFSET_Y)
             text.write(f"Score: {score}", align="center", font=("Arial", 24, "normal"))
         else:
-            snake[TAIL].reset()
+            snake[TAIL].hideturtle()
+            wn.turtles().remove(snake[TAIL])
             snake.pop(TAIL)
         same = 0
         for body in snake:
