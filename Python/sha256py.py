@@ -2,6 +2,7 @@
 import argparse
 import sys
 import requests
+import os
 
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
@@ -99,17 +100,20 @@ $$ /  \__|$$ |  $$ |$$ /  $$ |\__/  $$ |$$ |      $$ /  \__|
  \____$$\ $$  __$$ |$$  __$$ |$$  ____/ \_____$$\ $$  __$$\ 
 $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
 \$$$$$$  |$$ |  $$ |$$ |  $$ |$$$$$$$$\ \$$$$$$  | $$$$$$  |
- \______/ \__|  \__|\__|  \__|\________| \______/  \______/ ''',
+ \______/ \__|  \__|\__|  \__|\________| \______/  \______/ py''',
     formatter_class=argparse.RawTextHelpFormatter
 )
     parser.add_argument('-f', '--file', type=str, help='File to hash')
     parser.add_argument('-c', '--check', type=str, help='Hash string to check against')
     parser.add_argument('-u', '--url', type=str, help='Hash file from URL')
-    parser.add_argument('-s', '--save', action='store_true', help='Save generated hash as .sha256 file')
+    parser.add_argument('-s', '--save', type=str, help='Save generated hash as a file')
+    parser.add_argument('-v', '--verify', type=str, help='.csv file to verify')
+    parser.add_argument('--salt', type=str, help='Append a salt to your input before hashing')
+    parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
-    if not args.file and not args.url and not args.text and not args.check:
-        print("Error: You must provide either text to hash, a file with -f, or a URL with -u.")
+    if not args.file and not args.url and not args.text and not args.check and not args.verify:
+        print("Error: You must provide either text to hash, a file with -f, a URL with -u, or a .csv file with -v.")
         parser.print_help()
         sys.exit(1)
     if args.file:
@@ -130,19 +134,22 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
         except Exception as e:
             print(f"Error fetching URL '{args.url}': {e}")
             sys.exit(1)
+    elif args.salt:
+        args.text[-1] += args.salt
+        message_bytes = ' '.join(args.text).encode('utf-8')
     else:
         message_bytes = ' '.join(args.text).encode('utf-8')
     output = sha256_hash(message_bytes)
     if args.check:
-        if '.sha256' in args.check:
+        if '.sha256sum' in args.check:
             with open(args.check, 'r') as file:
-                contents = file.read().split('  ')
+                contents = file.read().split(',')
             hash = contents[0]
             filename = contents[-1]
             with open(filename, 'rb') as file:
                 message_bytes = file.read()
             output = sha256_hash(message_bytes)
-            if output.lower() == hash.lower():
+            if output == hash:
                 print("Success: Hashes match.")
                 sys.exit()
             else:
@@ -151,7 +158,7 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 print(f"Computed: {output}")
                 sys.exit(1)
         else:
-            if output.lower() == args.check.lower():
+            if output == args.check:
                 print("Success: Hashes match.")
                 sys.exit(0)
             else:
@@ -160,19 +167,65 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 print(f"Computed: {output}")
                 sys.exit(1)
     elif args.save:
-        if args.url:
-            filename = args.url.split('/')[-1].split('?')[0]
-            with open(filename + '.sha256sum', 'w') as file:
-                file.write(output + '  ' + filename)
-        elif args.file:
-            filename = args.file
-            with open(filename + '.sha256sum', 'w') as file:
-                file.write(output + '  ' + filename)
-        else:
-            filename = '-'.join(args.text)
-            with open(filename + '.sha256sum', 'w') as file:
-                file.write(output + '  ' + ' '.join(args.text))
-        print(f'SHA256 hash saved to {filename}.sha256sum.')
+        filename = args.save.strip()
+        if not filename:
+            print('Error: Please enter a valid filename.')
+            sys.exit(1)
+        if '.csv' in filename:
+            print('CSV file detected!')
+            with open(filename, 'r') as file:
+                validHeader = file.readline().strip() == 'hash,phrase'
+                contents = file.readlines()
+            if not validHeader:
+                print('Warning: File is not a valid format.')
+                contents.insert(0, 'hash,phrase')
+                with open(filename, 'w') as file:
+                    file.write('\n'.join(contents))
+        with open(filename, 'a') as file:
+            file.write(f'\n{output},{' '.join(args.text)}')
+        print(f'SHA256 hash saved to {filename}.')
+    elif args.verify:
+        try:
+            with open(args.verify, 'r') as file:
+                checklist = file.read().splitlines()
+        except FileNotFoundError:
+            print(f"Error: File '{args.verify}' not found.")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error reading file '{args.verify}': {e}")
+            sys.exit(1)
+        for i in range(len(checklist)):
+            checklist[i] = checklist[i].split(',')
+        hashPassed = 0
+        for line in checklist:
+            hash = line[0]
+            message = line[-1]
+            encoded = message.encode('utf-8')
+            if hash != sha256_hash(encoded):
+                print(f'{message} - Expected {sha256_hash(encoded)}, not {hash} (FAIL)')
+            else:
+                print(f'{message} - {hash} (PASS)')
+                hashPassed += 1
+        print(f'{hashPassed} of {len(checklist)} hashes passed.')
+    elif args.bruteforce:
+        attempts = []
+        try:
+            with open(args.bruteforce, 'r') as file:
+                attempts = file.read().splitlines()
+        except FileNotFoundError:
+            print(f"Error: File '{args.bruteforce} not found.")
+        except Exception as e:
+            print(f"Error reading file '{args.bruteforce}': {e}")
+        print(args.text)
+        for attempt in attempts:
+            encoded = attempt.encode('utf-8')
+            if sha256_hash(encoded) == ''.join(args.text):
+                print(f'Attempting {attempt}: PASS')
+                print(f'Found match: {attempt} - {sha256_hash(encoded)} at {attempts.index(attempt) + 1}/{len(attempts)} phrases.')
+                sys.exit(0)
+            else:
+                print(f'Attempting {attempt}: FAIL')
+        print(f'No matches found out of {len(attempts)} phrases. (FAIL)')
     else:
         print(output)
 
