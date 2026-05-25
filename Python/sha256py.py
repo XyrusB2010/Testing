@@ -213,30 +213,62 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
         print(f'{hashPassed} of {totalHashes} hashes passed.')
     elif args.bruteforce:
         attempts = []
+        attempts_total = None
         if args.bruteforce == 'ENGLISHDICTIONARY':
-            if input('Are you really sure you want to do this? (y/N): ').strip() == 'y':
-                englishDictionary = "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
-                attempts = requests.get(englishDictionary).content.decode('utf-8').splitlines()
-            else:
+            if input('Are you really sure you want to do this? (y/N): ').strip() != 'y':
                 print('Aborting.')
                 sys.exit(0)
+            englishDictionary = "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
+            attempts = requests.get(englishDictionary).content.decode('utf-8').splitlines()
+        elif args.bruteforce == 'ALLCOMBINATIONS':
+            if input('Are you really sure you want to do this? (y/N): ').strip() != 'y':
+                print('Aborting.')
+                sys.exit(0)
+            import itertools
+            import string
+            import time
+            start = time.perf_counter()
+            letters = string.ascii_letters + string.digits + string.punctuation
+            def all_combinations():
+                repeat = 1
+                while True:
+                    for combo in itertools.product(letters, repeat=repeat):
+                        yield ''.join(combo)
+                    repeat += 1
+            attempts = all_combinations()
         else:
             try:
                 with open(args.bruteforce, 'r') as file:
                     attempts = file.read().splitlines()
             except FileNotFoundError:
-                print(f"Error: File '{args.bruteforce} not found.")
+                print(f"Error: File '{args.bruteforce}' not found.")
             except Exception as e:
                 print(f"Error reading file '{args.bruteforce}': {e}")
+        if attempts_total is None and isinstance(attempts, list):
+            attempts_total = len(attempts)
+        attempt_count = 0
         for attempt in attempts:
+            attempt_count += 1
             encoded = attempt.encode('utf-8')
             if sha256_hash(encoded) == ''.join(args.text):
-                print(f'Attempting {attempt}: PASS')
-                print(f'Found match: {attempt} - {sha256_hash(encoded)} at {attempts.index(attempt) + 1}/{len(attempts)} phrases. (PASS)')
+                print(f'Attempting {attempt}: {sha256_hash(encoded)} (PASS)')
+                if attempts_total is None:
+                    print(f'Found match: {attempt} at {attempt_count} phrases. (PASS)')
+                    end = time.perf_counter()
+                    print(f'Bruteforce completed in {end - start:.2f} seconds.')
+                else:
+                    print(f'Found match: {attempt} at {attempt_count}/{attempts_total} phrases. (PASS)')
                 sys.exit(0)
             else:
-                print(f'Attempting {attempt}: FAIL')
-        print(f'No matches found out of {len(attempts)} phrases. (FAIL)')
+                print(f'Attempting {attempt}: {sha256_hash(encoded)} (FAIL)')
+        if attempts_total is None:
+            print('No matches found. (FAIL)')
+            end = time.perf_counter()
+            print(f'Bruteforce completed in {end - start:.2f} seconds.')
+        else:
+            print(f'No matches found out of {attempts_total} phrases. (FAIL)')
+        if attempt_count > 0:
+            print(sha256_hash(encoded))
     else:
         print(output)
 if __name__ == "__main__":
