@@ -109,7 +109,7 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     parser.add_argument('-s', '--save', type=str, help='Save generated hash as a file')
     parser.add_argument('-v', '--verify', type=str, help='.csv file to verify')
     parser.add_argument('--salt', type=str, help='Append a salt to your input before hashing')
-    parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases')
+    parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases, enter "ENGLISHDICTIONARY" to attempt a bruteforce hash using the English dictionary assuming the phrase is a single English word')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
     if not args.file and not args.url and not args.text and not args.check and not args.verify:
@@ -197,7 +197,11 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
         for i in range(len(checklist)):
             checklist[i] = checklist[i].split(',')
         hashPassed = 0
+        totalHashes = len(checklist)
         for line in checklist:
+            if ','.join(line) == "hash,phrase":
+                totalHashes -= 1
+                continue
             hash = line[0]
             message = line[-1]
             encoded = message.encode('utf-8')
@@ -206,28 +210,34 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
             else:
                 print(f'{message} - {hash} (PASS)')
                 hashPassed += 1
-        print(f'{hashPassed} of {len(checklist)} hashes passed.')
+        print(f'{hashPassed} of {totalHashes} hashes passed.')
     elif args.bruteforce:
         attempts = []
-        try:
-            with open(args.bruteforce, 'r') as file:
-                attempts = file.read().splitlines()
-        except FileNotFoundError:
-            print(f"Error: File '{args.bruteforce} not found.")
-        except Exception as e:
-            print(f"Error reading file '{args.bruteforce}': {e}")
-        print(args.text)
+        if args.bruteforce == 'ENGLISHDICTIONARY':
+            if input('Are you really sure you want to do this? (y/N): ').strip() == 'y':
+                englishDictionary = "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
+                attempts = requests.get(englishDictionary).content.decode('utf-8').splitlines()
+            else:
+                print('Aborting.')
+                sys.exit(0)
+        else:
+            try:
+                with open(args.bruteforce, 'r') as file:
+                    attempts = file.read().splitlines()
+            except FileNotFoundError:
+                print(f"Error: File '{args.bruteforce} not found.")
+            except Exception as e:
+                print(f"Error reading file '{args.bruteforce}': {e}")
         for attempt in attempts:
             encoded = attempt.encode('utf-8')
             if sha256_hash(encoded) == ''.join(args.text):
                 print(f'Attempting {attempt}: PASS')
-                print(f'Found match: {attempt} - {sha256_hash(encoded)} at {attempts.index(attempt) + 1}/{len(attempts)} phrases.')
+                print(f'Found match: {attempt} - {sha256_hash(encoded)} at {attempts.index(attempt) + 1}/{len(attempts)} phrases. (PASS)')
                 sys.exit(0)
             else:
                 print(f'Attempting {attempt}: FAIL')
         print(f'No matches found out of {len(attempts)} phrases. (FAIL)')
     else:
         print(output)
-
 if __name__ == "__main__":
     main()
