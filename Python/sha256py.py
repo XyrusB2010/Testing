@@ -109,7 +109,7 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     parser.add_argument('-s', '--save', type=str, help='Save generated hash as a file')
     parser.add_argument('-v', '--verify', type=str, help='.csv file to verify')
     parser.add_argument('--salt', type=str, help='Append a salt to your input before hashing')
-    parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases, enter "ENGLISHDICTIONARY" to attempt a bruteforce hash using the English dictionary assuming the phrase is a single English word')
+    parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
     if not args.file and not args.url and not args.text and not args.check and not args.verify:
@@ -254,8 +254,6 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 print(f'Attempting {attempt}: {sha256_hash(encoded)} (PASS)')
                 if attempts_total is None:
                     print(f'Found match: {attempt} at {attempt_count} phrases. (PASS)')
-                    end = time.perf_counter()
-                    print(f'Bruteforce completed in {end - start:.2f} seconds.')
                 else:
                     print(f'Found match: {attempt} at {attempt_count}/{attempts_total} phrases. (PASS)')
                 sys.exit(0)
@@ -263,12 +261,11 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 print(f'Attempting {attempt}: {sha256_hash(encoded)} (FAIL)')
         if attempts_total is None:
             print('No matches found. (FAIL)')
-            end = time.perf_counter()
-            print(f'Bruteforce completed in {end - start:.2f} seconds.')
         else:
             print(f'No matches found out of {attempts_total} phrases. (FAIL)')
-        if attempt_count > 0:
-            print(sha256_hash(encoded))
+        end = time.perf_counter()
+        print(f'Bruteforce completed in {end - start:.2f} seconds.')
+        sys.exit(1)
     else:
         print(output)
 if __name__ == "__main__":
