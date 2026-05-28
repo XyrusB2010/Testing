@@ -2,7 +2,6 @@
 import argparse
 import sys
 import requests
-import os
 
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
@@ -110,6 +109,7 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     parser.add_argument('-v', '--verify', type=str, help='.csv file to verify')
     parser.add_argument('--salt', type=str, help='Append a salt to your input before hashing')
     parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases')
+    parser.add_argument('--pattern', type=str, help='Pattern for bruteforce: L=letter, N=number, P=punctuation (e.g. LLNPPNN)')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
     if not args.file and not args.url and not args.text and not args.check and not args.verify:
@@ -214,6 +214,12 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     elif args.bruteforce:
         attempts = []
         attempts_total = None
+        pattern = args.pattern.strip().upper() if args.pattern else None
+        if pattern:
+            invalid = [ch for ch in pattern if ch not in {'L', 'N', 'P'}]
+            if invalid:
+                print(f"Error: Invalid pattern characters: {''.join(invalid)}. Use only L, N, P.")
+                sys.exit(1)
         if args.bruteforce == 'ENGLISHDICTIONARY':
             if input('Are you really sure you want to do this? (y/N): ').strip() != 'y':
                 print('Aborting.')
@@ -244,6 +250,25 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 print(f"Error: File '{args.bruteforce}' not found.")
             except Exception as e:
                 print(f"Error reading file '{args.bruteforce}': {e}")
+        if pattern:
+            import itertools
+            import string
+            letters = string.ascii_letters
+            numbers = string.digits
+            punct = string.punctuation
+            def masked_combinations():
+                pools = []
+                for ch in pattern:
+                    if ch == 'L':
+                        pools.append(letters)
+                    elif ch == 'N':
+                        pools.append(numbers)
+                    else:
+                        pools.append(punct)
+                for combo in itertools.product(*pools):
+                    yield ''.join(combo)
+            attempts = masked_combinations()
+            attempts_total = None
         if attempts_total is None and isinstance(attempts, list):
             attempts_total = len(attempts)
         attempt_count = 0
