@@ -2,22 +2,16 @@
 import argparse
 import sys
 import requests
-
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
-
 def shiftr(input, bits):
     return input >> bits
-
 def sigma0(n):
     return rotr(n, 7) ^ rotr(n, 18) ^ shiftr(n, 3)
-
 def sigma1(n):
     return rotr(n, 17) ^ rotr(n, 19) ^ shiftr(n, 10)
-
 def add32(*args):
     return sum(args) & 0xFFFFFFFF
-
 h0 = 0x6a09e667
 h1 = 0xbb67ae85
 h2 = 0x3c6ef372
@@ -26,7 +20,6 @@ h4 = 0x510e527f
 h5 = 0x9b05688c
 h6 = 0x1f83d9ab
 h7 = 0x5be0cd19
-
 K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
     0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -45,7 +38,6 @@ K = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
     0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 ]
-
 def sha256_hash(message_bytes):
     message = ''.join(format(byte, '08b') for byte in message_bytes)
     messageLen = len(message)
@@ -88,7 +80,6 @@ def sha256_hash(message_bytes):
             add32(hash_pieces[7], h)
         ]
     return ''.join(format(x, '08x') for x in hash_pieces)
-
 def main():
     parser = argparse.ArgumentParser(
     description=r'''
@@ -109,7 +100,7 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
     parser.add_argument('-v', '--verify', type=str, help='.csv file to verify')
     parser.add_argument('--salt', type=str, help='Append a salt to your input before hashing')
     parser.add_argument('--bruteforce', type=str, help='Attempt to decode the phrase using a file containing possible phrases')
-    parser.add_argument('--pattern', type=str, help='Pattern for bruteforce: L=letter, N=number, P=punctuation (e.g. LLNPPNN)')
+    parser.add_argument('--pattern', type=str, help=r'Pattern for bruteforce: \U for uppercase, \L for lowercase, \N for digits, \P for punctuation, \\ for literal backslash (e.g. \U\U\N for two uppercase letters followed by a digit)')
     parser.add_argument('text', nargs='*', help='Text to hash if no file is provided')
     args = parser.parse_args()
     if not args.file and not args.url and not args.text and not args.check and not args.verify:
@@ -212,28 +203,24 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 hashPassed += 1
         print(f'{hashPassed} of {totalHashes} hashes passed.')
     elif args.bruteforce:
+        import time
         attempts = []
         attempts_total = None
-        pattern = args.pattern.strip().upper() if args.pattern else None
-        if pattern:
-            invalid = [ch for ch in pattern if ch not in {'L', 'N', 'P'}]
-            if invalid:
-                print(f"Error: Invalid pattern characters: {''.join(invalid)}. Use only L, N, P.")
-                sys.exit(1)
+        pattern = args.pattern if args.pattern else None
         if args.bruteforce == 'ENGLISHDICTIONARY':
             if input('Are you really sure you want to do this? (y/N): ').strip() != 'y':
                 print('Aborting.')
                 sys.exit(0)
+            start = time.perf_counter()
             englishDictionary = "https://raw.githubusercontent.com/dwyl/english-words/refs/heads/master/words_alpha.txt"
             attempts = requests.get(englishDictionary).content.decode('utf-8').splitlines()
         elif args.bruteforce == 'ALLCOMBINATIONS':
             if input('Are you really sure you want to do this? (y/N): ').strip() != 'y':
                 print('Aborting.')
                 sys.exit(0)
+            start = time.perf_counter()
             import itertools
             import string
-            import time
-            start = time.perf_counter()
             letters = string.ascii_letters + string.digits + string.punctuation
             def all_combinations():
                 repeat = 1
@@ -243,28 +230,51 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                     repeat += 1
             attempts = all_combinations()
         else:
+            start = time.perf_counter()
             try:
                 with open(args.bruteforce, 'r') as file:
                     attempts = file.read().splitlines()
             except FileNotFoundError:
                 print(f"Error: File '{args.bruteforce}' not found.")
+                sys.exit(1)
             except Exception as e:
                 print(f"Error reading file '{args.bruteforce}': {e}")
+                sys.exit(1)
         if pattern:
             import itertools
             import string
-            letters = string.ascii_letters
-            numbers = string.digits
-            punct = string.punctuation
-            def masked_combinations():
+            def parse_pattern(pattern_text):
                 pools = []
-                for ch in pattern:
-                    if ch == 'L':
-                        pools.append(letters)
-                    elif ch == 'N':
-                        pools.append(numbers)
+                i = 0
+                while i < len(pattern_text):
+                    ch = pattern_text[i]
+                    if ch != '\\':
+                        pools.append(ch)
+                        i += 1
+                        continue
+                    if i + 1 >= len(pattern_text):
+                        raise ValueError('Pattern ends with a single \\.')
+                    token = pattern_text[i + 1]
+                    if token == 'U':
+                        pools.append(string.ascii_uppercase)
+                    elif token == 'L':
+                        pools.append(string.ascii_lowercase)
+                    elif token == 'N':
+                        pools.append(string.digits)
+                    elif token == 'P':
+                        pools.append(string.punctuation)
+                    elif token == '\\':
+                        pools.append('\\')
                     else:
-                        pools.append(punct)
+                        pools.append(token)
+                    i += 2
+                return pools
+            try:
+                pools = parse_pattern(pattern)
+            except ValueError as exc:
+                print(f"Error: {exc}")
+                sys.exit(1)
+            def masked_combinations():
                 for combo in itertools.product(*pools):
                     yield ''.join(combo)
             attempts = masked_combinations()
@@ -281,6 +291,8 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                     print(f'Found match: {attempt} at {attempt_count} phrases. (PASS)')
                 else:
                     print(f'Found match: {attempt} at {attempt_count}/{attempts_total} phrases. (PASS)')
+                end = time.perf_counter()
+                print(f'Bruteforce completed in {end - start:.2f} seconds.')
                 sys.exit(0)
             else:
                 print(f'Attempting {attempt}: {sha256_hash(encoded)} (FAIL)')
