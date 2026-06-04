@@ -2,6 +2,7 @@
 import argparse
 import sys
 import requests
+import os
 def rotr(input, bits):
     return ((input >> bits) | (input << (32 - bits))) & 0xFFFFFFFF
 def shiftr(input, bits):
@@ -204,6 +205,8 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
         print(f'{hashPassed} of {totalHashes} hashes passed.')
     elif args.bruteforce:
         import time
+        import json
+        import tempfile
         attempts = []
         attempts_total = None
         pattern = args.pattern if args.pattern else None
@@ -281,6 +284,20 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
             attempts_total = None
         if attempts_total is None and isinstance(attempts, list):
             attempts_total = len(attempts)
+        cache_file = os.path.join(tempfile.gettempdir(), 'sha256py_cache.temp')
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        entry = json.loads(line)
+                        if entry.get("hash") == ''.join(args.text):
+                            print(f"Cache hit: {entry.get('phrase')} - {entry.get('hash')}")
+                            sys.exit(0)
+            except (OSError, json.JSONDecodeError) as exc:
+                print(f"Warning: Could not read cache file '{cache_file}': {exc}")
         attempt_count = 0
         for attempt in attempts:
             attempt_count += 1
@@ -292,6 +309,11 @@ $$\   $$ |$$ |  $$ |$$ |  $$ |$$ |      $$\   $$ |$$ /  $$ |
                 else:
                     print(f'Found match: {attempt} at {attempt_count}/{attempts_total} phrases. (PASS)')
                 end = time.perf_counter()
+                cache_file = os.path.join(tempfile.gettempdir(), 'sha256py_cache.temp')
+                cache_entry = {"hash": sha256_hash(encoded), "phrase": attempt}
+                with open(cache_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(cache_entry, ensure_ascii=True) + "\n")
+                print(f'Cached result to {cache_file}.')
                 print(f'Bruteforce completed in {end - start:.2f} seconds.')
                 sys.exit(0)
             else:
